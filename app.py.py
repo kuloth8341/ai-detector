@@ -1,47 +1,48 @@
 import os
-import requests
+import requests  # Ithu romba mukkiyam!
 import streamlit as st
 from fastai.vision.all import *
 
-# 1. Page Configuration
 st.set_page_config(page_title="AI vs Real Detector", page_icon="🔍")
 
-# 2. Hugging Face Direct Link (Copy panna link-ah inga podunga)
-HF_MODEL_URL = "https://huggingface.co/spaces/kuloth/AI-Image-Detector/resolve/main/final_model.pkl"
-MODEL_PATH = "final_model.pkl"
+# Unga correct-ana resolve link
+HF_LINK = "https://huggingface.co/spaces/kuloth/AI-Image-Detector/resolve/main/final_model.pkl"
+MODEL_NAME = "final_model.pkl"
 
 @st.cache_resource
 def load_my_model():
-    # Model download logic
-    if not os.path.exists(MODEL_PATH):
-        with st.spinner("Downloading AI Model... Please wait."):
-            response = requests.get(HF_MODEL_URL)
-            with open(MODEL_PATH, "wb") as f:
-                f.write(response.content)
+    # 1. Check for corrupted files
+    if os.path.exists(MODEL_NAME) and os.path.getsize(MODEL_NAME) < 1000000:
+        os.remove(MODEL_NAME)
+        
+    # 2. Download from Hugging Face
+    if not os.path.exists(MODEL_NAME):
+        with st.spinner("Downloading AI Model (89MB)... Idhu oru nimisham aagum."):
+            r = requests.get(HF_LINK, allow_redirects=True)
+            with open(MODEL_NAME, 'wb') as f:
+                f.write(r.content)
     
-    # Load the learner
-    return load_learner(MODEL_PATH)
+    return load_learner(MODEL_NAME)
 
-# Try loading the model
+# Main App Logic
 try:
     model = load_my_model()
+    st.title("AI vs Real Image Detector 🔍")
+    
+    uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
+    
+    if uploaded_file is not None:
+        img = PILImage.create(uploaded_file)
+        st.image(img, caption='Uploaded Image', use_container_width=True)
+        
+        with st.spinner('Analyzing...'):
+            pred, pred_idx, probs = model.predict(img)
+            
+        st.divider()
+        st.subheader(f"Result: {pred.upper()}")
+        st.write(f"Confidence: {probs[pred_idx]*100:.2f}%")
+
 except Exception as e:
-    st.error(f"Error: Model load panna mudiyala. Check link: {e}")
-    model = None
-
-# 3. Main UI
-st.title("AI vs Real Image Detector 🔍")
-st.write("Upload an image to check if it's AI-generated or Real.")
-
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
-
-if uploaded_file is not None and model is not None:
-    img = PILImage.create(uploaded_file)
-    st.image(img, caption='Uploaded Image', use_container_width=True)
-    
-    with st.spinner('Analyzing...'):
-        pred, pred_idx, probs = model.predict(img)
-    
-    st.divider()
-    st.subheader(f"Result: {pred.upper()}")
-    st.write(f"Confidence: {probs[pred_idx]*100:.2f}%")
+    st.error(f"Error loading model: {e}")
+    if "requests" in str(e):
+        st.info("Tip: requirements.txt-la 'requests' add panni commit pannunga.")
