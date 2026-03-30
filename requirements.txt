@@ -1,3 +1,4 @@
 fastai
 streamlit
-pillow
+requests
+ipython
