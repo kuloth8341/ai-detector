@@ -3,34 +3,53 @@ import requests
 import streamlit as st
 from fastai.vision.all import *
 
-# Page Config
 st.set_page_config(page_title="AI vs Real Detector", page_icon="🔍")
 
-# Step 1: Model download panna function
+# Step 1: Secure Model download function
 def download_model():
-    url = "https://drive.google.com/uc?export=download&id=1Z7dWxjXQCAXQSA_suRnAQCG1SgLZ4Nq"
-    output = "final_model.pkl"
-    if not os.path.exists(output):
-        with st.spinner("Downloading model from Google Drive... Please wait."):
-            response = requests.get(url)
-            with open(output, "wb") as f:
-                f.write(response.content)
-    return output
+    file_id = "1Z7dWxjXQCAXQSA_suRnAQCG1SgLZ4Nq"
+    destination = "final_model.pkl"
+    
+    if not os.path.exists(destination):
+        with st.spinner("Downloading model from Google Drive (89MB)... This might take a minute."):
+            def get_confirm_token(response):
+                for key, value in response.cookies.items():
+                    if key.startswith('download_warning'):
+                        return value
+                return None
 
-# Step 2: Model-ah load pannunga
+            def save_response_content(response, destination):
+                CHUNK_SIZE = 32768
+                with open(destination, "wb") as f:
+                    for chunk in response.iter_content(CHUNK_SIZE):
+                        if chunk: # filter out keep-alive new chunks
+                            f.write(chunk)
+
+            URL = "https://docs.google.com/uc?export=download"
+            session = requests.Session()
+            response = session.get(URL, params={'id': file_id}, stream=True)
+            token = get_confirm_token(response)
+
+            if token:
+                params = {'id': file_id, 'confirm': token}
+                response = session.get(URL, params=params, stream=True)
+            
+            save_response_content(response, destination)
+    return destination
+
+# Step 2: Load Model
 @st.cache_resource
 def load_my_model():
-    model_path = download_model()
-    return load_learner(model_path)
+    try:
+        model_path = download_model()
+        return load_learner(model_path)
+    except Exception as e:
+        st.error(f"Model load panna mudiyala: {e}")
+        return None
 
-try:
-    model = load_my_model()
-    st.success("Model loaded successfully!")
-except Exception as e:
-    st.error(f"Error loading model: {e}")
-    model = None
+model = load_my_model()
 
-# Step 3: UI for Prediction
+# Step 3: UI
 st.title("AI vs Real Image Detector 🔍")
 uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
 
